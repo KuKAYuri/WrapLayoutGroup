@@ -65,6 +65,8 @@ namespace UnityEngine.UI
             GetConstraintLength();
             CalculateAxesSize();
             CalculateContentRect();
+            _rectTransform.sizeDelta = new Vector2(_contentRect.width + padding.horizontal,
+                _contentRect.height + padding.vertical);
             CalculateAxesPosition();
         }
 
@@ -138,9 +140,6 @@ namespace UnityEngine.UI
                     _contentRect.y = _rectTransform.sizeDelta.y - _contentRect.height - padding.bottom;
                 }
             }
-
-            _rectTransform.sizeDelta = new Vector2(_contentRect.width + padding.horizontal,
-                _contentRect.height + padding.vertical);
         }
 
         private void CalculateAxesSize()
