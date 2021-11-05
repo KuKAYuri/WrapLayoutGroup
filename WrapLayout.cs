@@ -1,36 +1,25 @@
 ﻿using System;
-using UnityEngine;
+using System.Collections;
 using System.Collections.Generic;
+using UnityEngine;
 
 namespace UnityEngine.UI
 {
-    public class WrapLayoutGroup : LayoutGroup
+    [ExecuteAlways]
+    public class WrapLayout : MonoBehaviour
     {
-        [SerializeField] protected Vector2 m_Spacing = Vector2.zero;
+        [SerializeField] public RectOffset padding = new RectOffset();
 
-        public Vector2 spacing
-        {
-            get { return m_Spacing; }
-            set { SetProperty(ref m_Spacing, value); }
-        }
+        [SerializeField] public TextAnchor childAlignment = TextAnchor.UpperLeft;
 
-        [SerializeField] protected Constraint m_Constraint = Constraint.FixedWidth;
+        [SerializeField] public Vector2 spacing = Vector2.zero;
 
-        public Constraint constraint
-        {
-            get { return m_Constraint; }
-            set { SetProperty(ref m_Constraint, value); }
-        }
+        [SerializeField] public Constraint constraint = Constraint.FixedWidth;
 
-#if UNITY_EDITOR
-        protected override void OnValidate()
-        {
-            base.OnValidate();
-            constraint = constraint;
-        }
-#endif
+        private RectTransform _rectTransform;
 
-/*--------------------------------------------------------------------------------------------------------------------*/
+        private List<RectTransform> _rectChildren = new List<RectTransform>();
+
 #if DEVELOP_TEST
         [SerializeField]
 #endif
@@ -40,11 +29,121 @@ namespace UnityEngine.UI
 #endif
         private List<Axis> _axes = new List<Axis>();
 
-        protected WrapLayoutGroup()
+        private WrapLayout()
         {
         }
 
-        private void CalculateAxes()
+        private void Awake()
+        {
+            _rectTransform = (RectTransform) transform;
+        }
+
+        private void Start()
+        {
+            RebuildLayout();
+        }
+
+        public void RebuildLayout()
+        {
+            _rectChildren.Clear();
+            for (int i = 0; i < transform.childCount; i++)
+            {
+                Transform child = transform.GetChild(i);
+                if (!child.gameObject.activeSelf)
+                {
+                    continue;
+                }
+                RectTransform rectChild = (RectTransform) child;
+                if (!rectChild)
+                {
+                    continue;
+                }
+                _rectChildren.Add(rectChild);
+            }
+
+            _contentRect.Set(0, 0, 0, 0);
+            GetConstraintLength();
+            CalculateAxesSize();
+            CalculateContentRect();
+            CalculateAxesPosition();
+        }
+
+        private void GetConstraintLength()
+        {
+            if (constraint == Constraint.FixedWidth)
+            {
+                _contentRect.width = _rectTransform.sizeDelta.x - padding.horizontal;
+            }
+            else
+            {
+                _contentRect.height = _rectTransform.sizeDelta.y - padding.vertical;
+            }
+        }
+
+        private void CalculateContentRect()
+        {
+            if (constraint == Constraint.FixedWidth)
+            {
+                foreach (Axis axis in _axes)
+                {
+                    if (!axis.enable)
+                    {
+                        continue;
+                    }
+                    _contentRect.height += axis.rect.height + spacing.y;
+                }
+                _contentRect.height -= spacing.y;
+
+                _contentRect.y = padding.top;
+
+                if ((int) childAlignment % 3 == 0)
+                {
+                    _contentRect.x = padding.left;
+                }
+                else if ((int) childAlignment % 3 == 1)
+                {
+                    _contentRect.x = (_rectTransform.sizeDelta.x - _contentRect.width) / 2f + padding.left -
+                                     padding.right;
+                }
+                else if ((int) childAlignment % 3 == 2)
+                {
+                    _contentRect.x = _rectTransform.sizeDelta.x - _contentRect.width - padding.right;
+                }
+            }
+            else
+            {
+                foreach (Axis axis in _axes)
+                {
+                    if (!axis.enable)
+                    {
+                        continue;
+                    }
+                    _contentRect.width += axis.rect.width + spacing.x;
+                }
+                _contentRect.width -= spacing.x;
+
+                _contentRect.x = padding.left;
+
+                if ((int) childAlignment / 3 == 0)
+                {
+                    _contentRect.y = padding.top;
+                }
+                else if ((int) childAlignment / 3 == 1)
+                {
+                    _contentRect.y = (_rectTransform.sizeDelta.y - _contentRect.height) / 2f + padding.top -
+                                     padding.bottom;
+                }
+                else if ((int) childAlignment / 3 == 2)
+                {
+                    _contentRect.y = _rectTransform.sizeDelta.y - _contentRect.height - padding.bottom;
+                }
+            }
+
+            _rectTransform.sizeDelta = new Vector2(_contentRect.width + padding.horizontal,
+                _contentRect.height + padding.vertical);
+        }
+
+        private void CalculateAxesSize()
         {
             if (_axes.Count == 0)
             {
@@ -53,15 +152,15 @@ namespace UnityEngine.UI
             Axis curAxis = _axes[0];
             curAxis.Enable();
 
-            for (int i = 0; i < rectChildren.Count; i++)
+            for (int i = 0; i < _rectChildren.Count; i++)
             {
 #if DEVELOP_TEST
-                if (rectChildren[i].GetComponentInChildren<Text>())
+                if (_rectChildren[i].GetComponentInChildren<Text>())
                 {
-                    rectChildren[i].GetComponentInChildren<Text>().text = i.ToString();
+                    _rectChildren[i].GetComponentInChildren<Text>().text = i.ToString();
                 }
 #endif
-                RectTransform rectChild = rectChildren[i];
+                RectTransform rectChild = _rectChildren[i];
                 if (constraint == Constraint.FixedWidth)
                 {
                     curAxis.rect.width += rectChild.sizeDelta.x;
@@ -75,7 +174,7 @@ namespace UnityEngine.UI
                             curAxis.children.Add(rectChild);
                             //设置另一个轴的大小值为这个元素的值
                             curAxis.rect.height = rectChild.sizeDelta.y;
-                            if (rectChildren[rectChildren.Count - 1] == rectChild) continue;
+                            if (_rectChildren[_rectChildren.Count - 1] == rectChild) continue;
                             if (curAxis.index == _axes.Count - 1)
                             {
                                 _axes.Add(new Axis(curAxis.index + 1));
@@ -117,7 +216,7 @@ namespace UnityEngine.UI
                             {
                                 //设置另一个轴的大小值为这个元素的值
                                 curAxis.rect.height = rectChild.sizeDelta.y;
-                                if (rectChildren[rectChildren.Count - 1] == rectChild) continue;
+                                if (_rectChildren[_rectChildren.Count - 1] == rectChild) continue;
                                 if (curAxis.index == _axes.Count - 1)
                                 {
                                     _axes.Add(new Axis(curAxis.index + 1));
@@ -133,7 +232,7 @@ namespace UnityEngine.UI
                                 {
                                     curAxis.rect.height = rectChild.sizeDelta.y;
                                 }
-                                if (rectChildren[rectChildren.Count - 1] == rectChild) continue;
+                                if (_rectChildren[_rectChildren.Count - 1] == rectChild) continue;
                                 if (curAxis.index == _axes.Count - 1)
                                 {
                                     _axes.Add(new Axis(curAxis.index + 1));
@@ -145,7 +244,7 @@ namespace UnityEngine.UI
                         //如果没有大于最大长度
                         else
                         {
-                            if (rectChildren[rectChildren.Count - 1] == rectChild)
+                            if (_rectChildren[_rectChildren.Count - 1] == rectChild)
                             {
                                 curAxis.rect.width -= spacing.x;
                             }
@@ -170,7 +269,7 @@ namespace UnityEngine.UI
                             curAxis.children.Add(rectChild);
                             //设置另一个轴的大小值为这个元素的值
                             curAxis.rect.width = rectChild.sizeDelta.x;
-                            if (rectChildren[rectChildren.Count - 1] == rectChild) continue;
+                            if (_rectChildren[_rectChildren.Count - 1] == rectChild) continue;
                             if (curAxis.index == _axes.Count - 1)
                             {
                                 _axes.Add(new Axis(curAxis.index + 1));
@@ -212,7 +311,7 @@ namespace UnityEngine.UI
                             {
                                 //设置另一个轴的大小值为这个元素的值
                                 curAxis.rect.width = rectChild.sizeDelta.x;
-                                if (rectChildren[rectChildren.Count - 1] == rectChild) continue;
+                                if (_rectChildren[_rectChildren.Count - 1] == rectChild) continue;
                                 if (curAxis.index == _axes.Count - 1)
                                 {
                                     _axes.Add(new Axis(curAxis.index + 1));
@@ -228,7 +327,7 @@ namespace UnityEngine.UI
                                 {
                                     curAxis.rect.width = rectChild.sizeDelta.x;
                                 }
-                                if (rectChildren[rectChildren.Count - 1] == rectChild) continue;
+                                if (_rectChildren[_rectChildren.Count - 1] == rectChild) continue;
                                 if (curAxis.index == _axes.Count - 1)
                                 {
                                     _axes.Add(new Axis(curAxis.index + 1));
@@ -240,7 +339,7 @@ namespace UnityEngine.UI
                         //如果没有大于最大长度
                         else
                         {
-                            if (rectChildren[rectChildren.Count - 1] == rectChild)
+                            if (_rectChildren[_rectChildren.Count - 1] == rectChild)
                             {
                                 curAxis.rect.height -= spacing.y;
                             }
@@ -255,116 +354,8 @@ namespace UnityEngine.UI
             }
         }
 
-        public override void CalculateLayoutInputHorizontal()
+        private void CalculateAxesPosition()
         {
-            base.CalculateLayoutInputHorizontal();
-
-            _contentRect.Set(0, 0, 0, 0);
-
-            if (constraint == Constraint.FixedWidth)
-            {
-                _contentRect.width = rectTransform.sizeDelta.x - padding.horizontal;
-            }
-            else
-            {
-                _contentRect.height = rectTransform.sizeDelta.y - padding.vertical;
-            }
-
-            CalculateAxes();
-
-            if (constraint == Constraint.FixedHeight)
-            {
-                foreach (Axis axis in _axes)
-                {
-                    if (!axis.enable)
-                    {
-                        continue;
-                    }
-                    _contentRect.width += axis.rect.width + spacing.x;
-                }
-                _contentRect.width -= spacing.x;
-            }
-
-            SetLayoutInputForAxis(_contentRect.width + padding.horizontal, _contentRect.width + padding.horizontal,
-                -1, 0);
-        }
-
-        private void CalculateContentRectPosition()
-        {
-            if (constraint == Constraint.FixedWidth)
-            {
-                _contentRect.y = padding.top;
-                
-                if ((int) childAlignment % 3 == 0)
-                {
-                    _contentRect.x = padding.left;
-                }
-                else if ((int) childAlignment % 3 == 1)
-                {
-                    _contentRect.x = (rectTransform.sizeDelta.x - _contentRect.width) / 2f + padding.left - padding.right;
-                }
-                else if ((int) childAlignment % 3 == 2)
-                {
-                    _contentRect.x = rectTransform.sizeDelta.x - _contentRect.width - padding.right;
-                }
-            }
-            else
-            {
-                _contentRect.x = padding.left;
-                    
-                if ((int) childAlignment / 3 == 0)
-                {
-                    _contentRect.y = padding.top;
-                }
-                else if ((int) childAlignment / 3 == 1)
-                {
-                    _contentRect.y = (rectTransform.sizeDelta.y - _contentRect.height) / 2f + padding.top - padding.bottom;
-                }
-                else if ((int) childAlignment / 3 == 2)
-                {
-                    _contentRect.y = rectTransform.sizeDelta.y - _contentRect.height - padding.bottom;
-                }
-            }
-        }
-
-        public override void CalculateLayoutInputVertical()
-        {
-            if (constraint == Constraint.FixedWidth)
-            {
-                foreach (Axis axis in _axes)
-                {
-                    if (!axis.enable)
-                    {
-                        continue;
-                    }
-                    _contentRect.height += axis.rect.height + spacing.y;
-                }
-                _contentRect.height -= spacing.y;
-            }
-
-            SetLayoutInputForAxis(_contentRect.height + padding.vertical, _contentRect.height + padding.vertical, -1,
-                1);
-
-            CalculateContentRectPosition();
-        }
-
-        public override void SetLayoutHorizontal()
-        {
-            SetCellsAlongAxis(0);
-        }
-
-        public override void SetLayoutVertical()
-        {
-            SetCellsAlongAxis(1);
-        }
-
-        private void SetCellsAlongAxis(int axis)
-        {
-            if (axis == 0)
-            {
-                return;
-            }
-
             if (_axes.Count == 0)
             {
                 return;
@@ -434,5 +425,38 @@ namespace UnityEngine.UI
                 curAxis.Disable();
             }
         }
+
+        private void SetChildAlongAxis(RectTransform rect, int axis, float pos)
+        {
+            if (rect == null)
+                return;
+
+            SetChildAlongAxisWithScale(rect, axis, pos, 1.0f);
+        }
+
+        private void SetChildAlongAxisWithScale(RectTransform rect, int axis, float pos, float scaleFactor)
+        {
+            if (rect == null)
+                return;
+
+            rect.anchorMin = Vector2.up;
+            rect.anchorMax = Vector2.up;
+
+            Vector2 anchoredPosition = rect.anchoredPosition;
+            anchoredPosition[axis] = (axis == 0)
+                ? (pos + rect.sizeDelta[axis] * rect.pivot[axis] * scaleFactor)
+                : (-pos - rect.sizeDelta[axis] * (1f - rect.pivot[axis]) * scaleFactor);
+            rect.anchoredPosition = anchoredPosition;
+        }
+
+#if UNITY_EDITOR
+        private void Update()
+        {
+            if (!Application.isPlaying)
+            {
+                RebuildLayout();
+            }
+        }
+#endif
     }
 }
