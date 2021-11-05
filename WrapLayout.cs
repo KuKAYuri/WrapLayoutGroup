@@ -16,6 +16,8 @@ namespace UnityEngine.UI
 
         [SerializeField] public Constraint constraint = Constraint.FixedWidth;
 
+        [SerializeField] public List<RectTransform> ignoreList = new List<RectTransform>();
+
         private RectTransform _rectTransform;
 
         private List<RectTransform> _rectChildren = new List<RectTransform>();
@@ -55,6 +57,10 @@ namespace UnityEngine.UI
                 }
                 RectTransform rectChild = (RectTransform) child;
                 if (!rectChild)
+                {
+                    continue;
+                }
+                if (ignoreList.Contains(rectChild))
                 {
                     continue;
                 }
